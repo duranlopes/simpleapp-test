@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simpleapp-deployment
+  labels:
+    app: simpleapp
+  namespace: prova
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: simpleapp
+  template:
+    metadata:
+      labels:
+        app: simpleapp
+    spec:
+      containers:
+      - name: simpleapp
+        image: duran750/simpleapptest:latest
+        ports:
+        - containerPort: 8008
+        envFrom:
+          - configMapRef:
+              name: simpleapp-cm
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8008
+          periodSeconds: 10
+          failureThreshold: 3
+          initialDelaySeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8008
+          periodSeconds: 10
+          failureThreshold: 5
+          initialDelaySeconds: 3
+      restartPolicy: Always

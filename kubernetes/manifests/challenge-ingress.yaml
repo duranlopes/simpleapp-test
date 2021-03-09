@@ -1,0 +1,16 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: simpleapi
+  namespace: simpleapi
+spec:
+  rules:
+  - http:
+      paths: 
+      - backend:
+          service:
+            name: simpleapi
+            port:
+              number: 80
+        path: /
+        pathType: Prefix
