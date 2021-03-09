@@ -1,0 +1,16 @@
+version: '3'
+
+services:
+  api:
+    container_name: simpletest
+    #build:
+    #  context: .
+    image: duran750/simpleapptest:latest
+    ports:
+      - 8008:8008
+    networks:
+      - simpletest-network
+
+networks: 
+  simpletest-network:
+    driver: bridge
