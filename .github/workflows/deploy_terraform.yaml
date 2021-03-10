@@ -1,0 +1,60 @@
+name: DeployTerraform
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v1
+        with:
+          name: terraform
+          path: ${{ github.workspace }}/terraform
+
+  deploy-infra:
+    name: Deploy Infra
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}/terraform
+
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      SSH_KEY: ${{ secrets.SSH_KEY }}
+
+    needs: build
+    steps:
+      - name: Download Terraform
+        uses: actions/download-artifact@v2
+        with:
+          name: terraform
+          path: ${{ github.workspace }}/terraform
+
+      - uses: hashicorp/setup-terraform@v1
+        with:
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        id: init
+        run: terraform init
+
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color
+
+      - name: Terraform Plan
+        id: plan
+        run: terraform plan -no-color -lock=false
+        continue-on-error: true
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve -lock=false
+
+      - name: Terraform show
+        run: terraform show -no-color
