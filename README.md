@@ -3,7 +3,7 @@
 ## Build Python Docker image:
 
 ```
-cd /app
+cd app/
 
 docker build -t duran750/simpleapptest:latest
 
@@ -13,7 +13,7 @@ docker push duran750/simpleapptest:latest
 ## Kubernetes Manifests 
 
 ```
-cd /kubernetes/manifests
+cd kubernetes/manifests
 
 #Namespace: 
 kubectl create-f ns.yaml
@@ -46,3 +46,17 @@ helm install prometheus prometheus-community/kube-prometheus-stack
 ```
 
 *obs: Default grafana password is `prom-operator`
+
+## Python
+
+### List EC2 Instances - To run this script it is necessary to install the Boto3 library and configure aws cli
+
+```
+# Configure aws access key and secret key
+aws configure
+
+cd list_ec2/
+pip install -r requirements.txt
+
+python3 get_ec2.py
+```
