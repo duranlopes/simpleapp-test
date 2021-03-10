@@ -4,10 +4,10 @@ metadata:
   name: simpleapp-svc
   namespace: prova
 spec:
-  type: NodePort
+  type: ClusterIP
   ports:
     - port: 8008
-      targetPort: 8008
-      nodePort: 30000
+      #targetPort: 8008
+      #nodePort: 30000
   selector:
     app: simpleapp
