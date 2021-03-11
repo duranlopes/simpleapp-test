@@ -17,7 +17,8 @@ spec:
     spec:
       containers:
       - name: simpleapp
-        image: duran750/simpleapptest:latest
+        #image: duran750/simpleapptest:latest
+        image: duran750/simpleapptest:v1
         ports:
         - containerPort: 8008
         envFrom:
@@ -38,3 +39,19 @@ spec:
           failureThreshold: 5
           initialDelaySeconds: 3
       restartPolicy: Always
+
+
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: simpleapp-hpa
+  namespace: prova
+spec:
+  maxReplicas: 10
+  minReplicas: 1
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: simpleapp-deployment
+  targetCPUUtilizationPercentage: 30
