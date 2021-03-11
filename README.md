@@ -1,9 +1,9 @@
 # simpleapp-test
 
 
-## Deploy IaC:
+## Deploy IaC
 
-### Terraform 
+### Terraform:
 
 ```
 ## Initiate provider
@@ -14,7 +14,7 @@ terraform apply
 
 ```
 
-### Change Kubernetes context
+### Change Kubernetes context:
 
 ```
 aws eks --region us-east-1 update-kubeconfig --name k8s-demo
@@ -50,10 +50,9 @@ kubectl create -f simpleapp-svc.yaml && \
 #Ingress Controller
 kubectl create -f challenge-ingress.yaml 
           
-
 ```
 
-### K8s Features
+### K8s Features:
 
 ```
 # Deploy Nginx ingress controller
@@ -64,9 +63,9 @@ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/cont
 kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
 ```
 
-## Helm:
+## Helm
 
-### Install
+### Install:
 
 ```
 curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 > get_helm.sh
@@ -74,7 +73,7 @@ chmod 700 get_helm.sh
 ./get_helm.sh
 ```
 
-### Prometheus Stack
+### Prometheus Stack:
 
 ```
 # Deploy Prometheus + Grafana
@@ -83,7 +82,7 @@ helm repo update && \
 helm install prometheus prometheus-community/kube-prometheus-stack -n prova
 ```
 
-### ELK Stack
+### ELK Stack:
 
 ```
 helm repo add elastic https://Helm.elastic.co && \
@@ -94,27 +93,41 @@ helm install metricbeat elastic/metricbeat -n prova && \
 helm install apm-server elastic/apm-server -n prova
 ```
 
-## Python:
+## EC2 Instances
 
-### List EC2 Instances
+### Get-ec2 API:
 
 ```
 # Configure aws access key and secret key
 aws configure
 
-cd list_ec2/
+cd list_ec2_api/
 
-#To run this script it is necessary to install the Boto3 library and configure aws cli
+# To run this script it is necessary to install the Boto3 library and configure aws cli or running in docker using env vars
+
 pip install -r requirements.txt
 
-python3 get_ec2.py
-
+python3 api/get_ec2.py
 ```
 
+### Running Get-ec2 with Docker 
+
+`Obs: Set your AWS credentials env's`
+
+```
+docker run -p 5000:5000 -e AWS_ACCESS_KEY_ID="" \
+-e AWS_SECRET_ACCESS_KEY="" \
+-e AWS_DEFAULT_REGION=us-east-1 duran750/ec2-api
+```
+
+Acess API in http://localhost:5000/ec2 or Swagger in http://localhost:5000/docs
 
 ## Samples:
 
 ### Grafana dashboard
+
+http://grafana.prova/
+
 
 *obs: Default grafana user: `admin` and password is `prom-operator`
 
@@ -123,8 +136,15 @@ python3 get_ec2.py
 
 ### Kibana
 
+http://kibana.prova/
+
 #### Cluster metrics
 ![Kibana metric dashboard](assets/kibana_metrics_pods.png)
 
 #### APM metrics
 ![Kibana metric dashboard](assets/kibana_apm_flask.png)
+
+
+### Get EC2 API
+
+![ec2 api](assets/get_ec2_api.png)
