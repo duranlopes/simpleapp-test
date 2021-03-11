@@ -20,7 +20,7 @@ terraform apply
 aws eks --region us-east-1 update-kubeconfig --name k8s-demo
 ```
 
-## Build Python Docker image:
+## Build API Image:
 
 ```
 cd app/
