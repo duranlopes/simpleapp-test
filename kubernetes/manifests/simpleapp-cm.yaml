@@ -4,4 +4,4 @@ metadata:
   name: simpleapp-cm
   namespace: prova
 data:
-  code: "1337"
+  Code: "1337"
