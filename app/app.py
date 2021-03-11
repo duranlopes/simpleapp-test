@@ -1,7 +1,18 @@
 
 import os, json, logging
 from flask import Flask, jsonify
+from elasticapm.contrib.flask import ElasticAPM
+
 app = Flask(__name__)
+
+app.config['ELASTIC_APM'] = {
+          'SERVICE_NAME': 'simpleapp',
+          'SECRET_TOKEN': '',         
+          'SERVER_URL': 'http://apm-server-apm-server:8200'
+
+}
+
+apm = ElasticAPM(app)
 
 @app.route('/')
 def index():

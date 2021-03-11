@@ -1,9 +1,9 @@
 # simpleapp-test
 
 
-## Deploy IaC
+## Deploy IaC:
 
-### - Terraform 
+### Terraform 
 
 ```
 ## Initiate provider
@@ -25,12 +25,12 @@ aws eks --region us-east-1 update-kubeconfig --name k8s-demo
 ```
 cd app/
 
-docker build -t duran750/simpleapptest:latest
+docker build -t duran750/simpleapptest:v1
 
-docker push duran750/simpleapptest:latest
+docker push duran750/simpleapptest:v1
 ```
 
-## Kubernetes Manifests 
+## Kubernetes Manifests:
 
 ```
 cd kubernetes/manifests
@@ -39,22 +39,22 @@ cd kubernetes/manifests
 kubectl create -f ns.yaml
 
 #ConfigMap:
-kubectl create -f simpleapp-cm.yaml
+kubectl create -f simpleapp-cm.yaml && \ 
 
 #Deployment: 
-kubectl create -f simpleapp.yaml
+kubectl create -f simpleapp.yaml && \ 
 
 #Service
-kubectl create -f simpleapp-svc.yaml
-
+kubectl create -f simpleapp-svc.yaml && \ 
 
 #Ingress Controller
-kubectl create -f challenge-ingress-yaml
+kubectl create -f challenge-ingress.yaml 
           
 
 ```
 
 ### K8s Features
+
 ```
 # Deploy Nginx ingress controller
 kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-0.32.0/deploy/static/provider/aws/deploy.yaml
@@ -64,9 +64,7 @@ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/cont
 kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
 ```
 
-
-
-## Helm 
+## Helm:
 
 ### Install
 
@@ -82,7 +80,7 @@ chmod 700 get_helm.sh
 # Deploy Prometheus + Grafana
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts && \
 helm repo update && \
-helm install prometheus prometheus-community/kube-prometheus-stack 
+helm install prometheus prometheus-community/kube-prometheus-stack -n prova
 ```
 
 ### ELK Stack
@@ -90,16 +88,15 @@ helm install prometheus prometheus-community/kube-prometheus-stack
 ```
 helm repo add elastic https://Helm.elastic.co && \
 helm repo update && \
-helm install elasticsearch elastic/elasticsearch -n prova && \
-helm install kibana elastic/kibana -n prova && \
-helm install metricbeat elastic/metricbeat -n prova
+helm install elasticsearch elastic/elasticsearch -n prova -f kubernetes/helm/elk/elastic-values.yaml  && \
+helm install kibana elastic/kibana -n prova -f kubernetes/helm/elk/kibana-values.yaml && \
+helm install metricbeat elastic/metricbeat -n prova && \
+helm install apm-server elastic/apm-server -n prova
 ```
 
+## Python:
 
-
-## Python
-
-### List EC2 Instances - To run this script it is necessary to install the Boto3 library and configure aws cli
+### List EC2 Instances
 
 ```
 # Configure aws access key and secret key
@@ -107,6 +104,7 @@ aws configure
 
 cd list_ec2/
 
+#To run this script it is necessary to install the Boto3 library and configure aws cli
 pip install -r requirements.txt
 
 python3 get_ec2.py
@@ -114,7 +112,7 @@ python3 get_ec2.py
 ```
 
 
-## Samples
+## Samples:
 
 ### Grafana dashboard
 
@@ -125,4 +123,8 @@ python3 get_ec2.py
 
 ### Kibana
 
+#### Cluster metrics
 ![Kibana metric dashboard](assets/kibana_metrics_pods.png)
+
+#### APM metrics
+![Kibana metric dashboard](assets/kibana_apm_flask.png)

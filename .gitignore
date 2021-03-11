@@ -168,3 +168,4 @@ terraform/.terraform.lock.hcl
 data/
 
 tasks.md
+*.hcl
