@@ -5,48 +5,39 @@
 
 ### Terraform:
 
-```
+```bash
 ## Initiate provider
 terraform init
-
 ## Apply the modules
 terraform apply
-
 ```
 
 ### Change Kubernetes context:
 
-```
-aws eks --region us-east-1 update-kubeconfig --name k8s-demo
+```bash
+aws eks --region us-east-1 update-kubeconfig --name k8s-cluster
 ```
 
 ## Build API Image:
 
-```
+```bash
 cd app/
-
 docker build -t duran750/simpleapptest:v1
-
 docker push duran750/simpleapptest:v1
 ```
 
 ## Kubernetes Manifests:
 
-```
+```bash
 cd kubernetes/manifests
-
 #Namespace: 
-kubectl create -f ns.yaml
-
+kubectl create -f ns.yaml && \
 #ConfigMap:
 kubectl create -f simpleapp-cm.yaml && \ 
-
 #Deployment: 
 kubectl create -f simpleapp.yaml && \ 
-
 #Service
 kubectl create -f simpleapp-svc.yaml && \ 
-
 #Ingress Controller
 kubectl create -f challenge-ingress.yaml 
           
@@ -54,7 +45,8 @@ kubectl create -f challenge-ingress.yaml
 
 ### K8s Features:
 
-```
+
+```bash
 # Deploy Nginx ingress controller
 kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-0.32.0/deploy/static/provider/aws/deploy.yaml
 
@@ -75,7 +67,7 @@ chmod 700 get_helm.sh
 
 ### Prometheus Stack:
 
-```
+```bash
 # Deploy Prometheus + Grafana
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts && \
 helm repo update && \
@@ -84,11 +76,12 @@ helm install prometheus prometheus-community/kube-prometheus-stack -n prova
 
 ### ELK Stack:
 
-```
+```bash
+cd kubernetes/helm/elk && \
 helm repo add elastic https://Helm.elastic.co && \
 helm repo update && \
-helm install elasticsearch elastic/elasticsearch -n prova -f kubernetes/helm/elk/elastic-values.yaml  && \
-helm install kibana elastic/kibana -n prova -f kubernetes/helm/elk/kibana-values.yaml && \
+helm install elasticsearch elastic/elasticsearch -n prova -f elastic-values.yaml  && \
+helm install kibana elastic/kibana -n prova -f kibana-values.yaml && \
 helm install metricbeat elastic/metricbeat -n prova && \
 helm install apm-server elastic/apm-server -n prova
 ```
@@ -114,7 +107,7 @@ python3 api/get_ec2.py
 
 `Obs: Set your AWS credentials env's`
 
-```
+```bash
 docker run -p 5000:5000 -e AWS_ACCESS_KEY_ID="" \
 -e AWS_SECRET_ACCESS_KEY="" \
 -e AWS_DEFAULT_REGION=us-east-1 duran750/ec2-api
