@@ -1,5 +1,5 @@
 variable "cluster_name" {
-  default = "k8s-demo"
+  default = "k8s-cluster"
 }
 
 variable "region" {
