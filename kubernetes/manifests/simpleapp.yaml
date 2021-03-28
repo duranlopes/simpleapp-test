@@ -16,31 +16,33 @@ spec:
         app: simpleapp
     spec:
       containers:
-      - name: simpleapp
-        #image: duran750/simpleapptest:latest
-        image: duran750/simpleapptest:v1
-        ports:
-        - containerPort: 8008
-        envFrom:
-          - configMapRef:
-              name: simpleapp-cm
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 8008
-          periodSeconds: 10
-          failureThreshold: 3
-          initialDelaySeconds: 20
-        readinessProbe:
-          httpGet:
-            path: /health
-            port: 8008
-          periodSeconds: 10
-          failureThreshold: 5
-          initialDelaySeconds: 3
+        - name: simpleapp
+          image: duran750/simpleapptest:v1
+          ports:
+            - containerPort: 8008
+          envFrom:
+            - configMapRef:
+                name: simpleapp-cm
+          resources:
+            limits:
+              cpu: 500m
+            requests:
+              cpu: 300m
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8008
+            periodSeconds: 10
+            failureThreshold: 3
+            initialDelaySeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8008
+            periodSeconds: 10
+            failureThreshold: 5
+            initialDelaySeconds: 3
       restartPolicy: Always
-
-
 ---
 apiVersion: autoscaling/v1
 kind: HorizontalPodAutoscaler
