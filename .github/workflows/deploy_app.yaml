@@ -1,0 +1,58 @@
+ name: Deploy-K8s
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Docker login
+        env: 
+          DOCKER_USER: ${{ secrets.DOCKER_USER }}  
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}  
+        run: docker login -u $DOCKER_USER -p $DOCKER_PASSWORD docker.io
+
+      - name: Docker build Python
+        run: docker build -t rparisi/desafiostone ./entregavel-1
+
+      - name: Push image
+        run:  docker push rparisi/desafiostone:latest 
+
+  deploy:
+    runs-on: ubuntu-latest
+    container:
+      image: rparisi/aws_cd:latest
+    steps:
+      - name: Configure AWS credentials from Test account
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+          
+      - uses: actions/checkout@v2
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v1
+        with:
+          name: kubernetes
+          path: ${{ github.workspace }}//entregavel-2/kubernetes
+      - name: Download Artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: kubernetes
+          path: ${{ github.workspace }}/entregavel-2/kubernetes
+      
+      - name: LS -LA
+        run: ls -la
+      - name: AWS EKS > KUBECTL
+        run: aws eks --region us-east-1 update-kubeconfig --name k8s-cluster
+      - name: deploy manifest
+        run: kubectl apply -f ./entregavel-2/kubernetes/desafio_namespace.yaml
+      - name: deploy manifest
+        run: kubectl apply -f ./entregavel-2/kubernetes/desafio_deployment.yaml
+      - name: deploy manifest
+        run: kubectl apply -f ./entregavel-2/kubernetes/desafio_service.yaml
+      - name: deploy manifest
+        run: kubectl apply -f ./entregavel-2/kubernetes/desafio_ingress.yaml 
