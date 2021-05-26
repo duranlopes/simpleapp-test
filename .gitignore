@@ -170,3 +170,7 @@ data/
 tasks.md
 *.hcl
 .vscode
+
+
+.terraform/
+.terraform.lock.hcl
