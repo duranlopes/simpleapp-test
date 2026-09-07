@@ -141,3 +141,45 @@ http://kibana.prova/
 ### Get EC2 API
 
 ![ec2 api](assets/get_ec2_api.png)
+
+## Terraform layout
+
+The Terraform root uses the official community modules for the AWS infrastructure:
+
+- `terraform-aws-modules/vpc/aws` `6.x` for the VPC, public/private subnets, NAT gateway, and subnet tags.
+- `terraform-aws-modules/eks/aws` `21.x` for the EKS control plane and managed node group.
+- HashiCorp AWS provider `6.x`, locked in `terraform/.terraform.lock.hcl`.
+
+The real AWS deployment is manual and requires AWS credentials plus a configured state backend before applying in a shared environment.
+
+## Validate EKS locally with Floci
+
+Floci provides an isolated AWS-compatible EKS test environment. It uses EKS mock mode, so the test validates Terraform resource creation, AWS API wiring, state refresh, outputs, and cleanup without creating AWS resources.
+
+```bash
+cd terraform
+
+docker compose -f docker-compose.floci.yml up -d --wait
+cd floci
+
+export AWS_ACCESS_KEY_ID=test
+export AWS_SECRET_ACCESS_KEY=test
+export AWS_DEFAULT_REGION=us-east-1
+export AWS_ENDPOINT_URL=http://127.0.0.1:4566
+
+terraform init -backend=false
+terraform validate
+terraform plan -var-file=../floci.tfvars.example
+terraform apply -auto-approve -var-file=../floci.tfvars.example
+terraform output
+terraform destroy -auto-approve -var-file=../floci.tfvars.example
+```
+
+The Floci root intentionally uses a small `floci-network` module. Floci requires real VPC, subnet, and security-group IDs for EKS operations, but its emulator does not reproduce the full AWS networking behavior of the production VPC module.
+
+The Floci test does not validate kubelet, node bootstrapping, CNI behavior, Helm workloads, or production AWS networking. Use a Kubernetes distribution such as Kind or a real EKS environment for those checks.
+
+## GitHub Actions
+
+- `terraform-ci.yaml` runs Terraform formatting and validation, then applies and destroys the Floci EKS test environment.
+- `deploy_terraform.yaml` is manual-only and runs plan/apply against AWS using repository secrets.
