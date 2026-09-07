@@ -21,7 +21,7 @@ env:
 
 jobs:
   format-validate:
-    name: Format and validate AWS root
+    name: Format and validate Terraform
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -46,11 +46,11 @@ jobs:
         run: terraform validate
 
   floci:
-    name: Apply and destroy EKS against Floci
+    name: Validate the canonical Terraform root against Floci
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: terraform/floci
+        working-directory: terraform
     env:
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
@@ -67,11 +67,9 @@ jobs:
           terraform_wrapper: false
 
       - name: Start Floci
-        working-directory: terraform
         run: docker compose -f docker-compose.floci.yml up -d --wait
 
       - name: Wait for Floci
-        working-directory: terraform
         run: |
           for attempt in $(seq 1 30); do
             if curl --fail --silent http://127.0.0.1:4566/_floci/health > /tmp/floci-health.json; then
@@ -92,21 +90,20 @@ jobs:
         run: terraform validate
 
       - name: Terraform plan
-        run: terraform plan -input=false -refresh=false -lock=false -var-file=../floci.tfvars.example
+        run: terraform plan -input=false -refresh=false -lock=false -var-file=floci.tfvars.example
 
       - name: Terraform apply
-        run: terraform apply -auto-approve -input=false -lock=false -var-file=../floci.tfvars.example
+        run: terraform apply -auto-approve -input=false -lock=false -var-file=floci.tfvars.example
 
-      - name: Verify active resources
+      - name: Verify EKS resources through the AWS API
         run: |
-          test "$(terraform output -raw cluster_status)" = "ACTIVE"
-          test "$(terraform output -raw node_group_status)" = "ACTIVE"
+          test "$(aws eks describe-cluster --name simpleapp-floci --query 'cluster.status' --output text)" = "ACTIVE"
+          test "$(aws eks describe-nodegroup --cluster-name simpleapp-floci --nodegroup-name simpleapp-floci-node-group --query 'nodegroup.status' --output text)" = "ACTIVE"
 
       - name: Terraform destroy
         if: always()
-        run: terraform destroy -auto-approve -input=false -lock=false -var-file=../floci.tfvars.example
+        run: terraform destroy -auto-approve -input=false -lock=false -var-file=floci.tfvars.example
 
       - name: Stop Floci
         if: always()
-        working-directory: terraform
-        run: docker compose -f docker-compose.floci.yml down -v
+        run: docker compose -f docker-compose.floci.yml down -v --remove-orphans
