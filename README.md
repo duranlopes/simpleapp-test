@@ -11,9 +11,8 @@ A hands-on DevOps and Kubernetes laboratory built around a small Flask applicati
 
 - **Flask application** with health, configuration, and APM endpoints.
 - **Docker Compose** definition for running the application locally.
-- **Kubernetes manifests** for the application, service, namespace, ConfigMap, HPA, and ingress.
-- **Kind cluster bootstrap** for a local multi-node Kubernetes cluster.
-- **Helm values** for Elasticsearch and Kibana.
+- **Helm chart** for the application Deployment, Service, ConfigMap, HPA, and Ingress.
+- **Helm values** for Elasticsearch and Kibana observability.
 - **k6 load test** container and script.
 - **EKS Terraform** using the official VPC and EKS community modules.
 - **Floci EKS compatibility test** that creates and destroys a complete mock EKS environment without AWS credentials.
@@ -28,8 +27,10 @@ A hands-on DevOps and Kubernetes laboratory built around a small Flask applicati
 ├── k6-stresstest/               # k6 load-test image and script
 ├── kind-cluster/                # Kind cluster configuration and bootstrap script
 ├── kubernetes/
-│   ├── manifests/               # Application Kubernetes resources
-│   └── helm/elk/                # Elasticsearch and Kibana values
+│   ├── manifests/               # Legacy/raw resources retained for reference
+│   └── helm/
+│       ├── simpleapp/           # Application deployment chart
+│       └── elk/                 # Elasticsearch and Kibana values
 ├── list_ec2_api/               # Small Flask API that lists EC2 instances
 ├── terraform/
 │   ├── modules.tf               # AWS VPC and EKS module composition
@@ -80,6 +81,33 @@ docker build -t simpleapp-test:local app/
 
 The existing Kubernetes deployment references `duran750/simpleapptest:v1`. Publish a compatible image or update `kubernetes/manifests/simpleapp.yaml` before deploying it.
 
+The chart is the recommended Kubernetes deployment path. The raw files under `kubernetes/manifests/` are retained as legacy/reference resources and are not used by the Helm workflow.
+
+Install the application into the current Kubernetes context:
+
+```bash
+make helm-lint
+make helm-template HELM_IMAGE_TAG=latest
+make helm-install HELM_IMAGE_TAG=latest
+kubectl rollout status deployment/simpleapp -n prova
+```
+
+For a real deployment, use an immutable image tag:
+
+```bash
+make helm-install \\
+  HELM_IMAGE_REPOSITORY=ghcr.io/duranlopes/simpleapp-test \\
+  HELM_IMAGE_TAG=<git-sha>
+```
+
+Uninstall the release with:
+
+```bash
+make helm-uninstall
+```
+
+The manual GitHub Actions deployment builds an image tagged with the commit SHA and runs `helm upgrade --install --atomic --wait`. Configure the protected `production` environment with `AWS_ROLE_TO_ASSUME` for OIDC and `GHCR_READ_TOKEN` for the cluster image pull secret.
+
 ## Local Kubernetes with Kind
 
 Prerequisites:
@@ -88,28 +116,31 @@ Prerequisites:
 - `kubectl`
 - Kind
 
-The bootstrap script installs an older pinned Kind binary when Kind is not already present, creates a three-worker cluster, installs ingress-nginx, waits for the ingress controller, and applies metrics-server:
+The bootstrap script installs a pinned Kind binary when Kind is not already present, creates a three-worker cluster, installs a pinned ingress-nginx release, waits for the ingress controller, and applies metrics-server:
 
 ```bash
-cd kind-cluster
-./install.sh
-kubectl cluster-info --context kind-kind
+make kind-up
+kubectl cluster-info --context kind-simpleapp-test
 kubectl get nodes
 ```
 
 The script uses host ports `80` and `443`. Make sure they are available before running it.
 
-Deploy the application resources:
+Deploy the application chart to Kind:
 
 ```bash
-kubectl apply -f kubernetes/manifests/ns.yaml
-kubectl apply -f kubernetes/manifests/simpleapp-cm.yaml
-kubectl apply -f kubernetes/manifests/simpleapp.yaml
-kubectl apply -f kubernetes/manifests/simpleapp-svc.yaml
-kubectl apply -f kubernetes/manifests/challenge-ingress.yaml
+make helm-install \\
+  HELM_IMAGE_REPOSITORY=simpleapp-test \\
+  HELM_IMAGE_TAG=local
 ```
 
-The current ingress manifest contains the legacy `extensions/v1beta1` API. Check cluster compatibility before applying it to a current Kubernetes release; migrate it to `networking.k8s.io/v1` when modernizing the workload path.
+Remove the application and cluster:
+
+```bash
+make helm-uninstall
+make kind-down
+```
+
 
 ## Terraform and AWS EKS
 
@@ -211,7 +242,11 @@ Floci validates Terraform resource creation, module wiring, state refresh, EKS A
 3. Floci Terraform plan, apply, output assertions, and destroy.
 4. Floci cleanup even when a previous step fails.
 
-### Manual AWS deployment
+### Manual application deployment
+
+`deploy_app.yaml` is triggered with `workflow_dispatch`. It builds the application image, publishes the commit-SHA tag to GHCR, configures EKS with AWS OIDC, and deploys `kubernetes/helm/simpleapp` with `helm upgrade --install --atomic --wait`. The `production` environment must provide `AWS_ROLE_TO_ASSUME` and a read-only `GHCR_READ_TOKEN`.
+
+### Manual AWS infrastructure deployment
 
 `deploy_terraform.yaml` is triggered with `workflow_dispatch`. It runs Terraform init, format, validate, plan, apply, and show against AWS using:
 

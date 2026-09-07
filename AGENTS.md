@@ -106,9 +106,18 @@ For Kubernetes manifest changes, use a disposable Kind cluster when the required
 
 For application changes, run the narrowest relevant Python test or smoke test and verify the HTTP endpoint when practical.
 
+## Helm application deployment
+
+The recommended Kubernetes application delivery path is `kubernetes/helm/simpleapp/`. It owns the application Deployment, Service, ConfigMap, ServiceAccount, HPA, and Ingress. The raw files under `kubernetes/manifests/` are retained as legacy/reference resources and must not be used by the deployment workflow.
+
+Use `helm lint`, `helm template`, and `helm upgrade --install --atomic --wait` for application delivery. Publish immutable image tags based on the commit SHA. Never put a GHCR token, APM token, or other secret in `values.yaml`; use a Kubernetes Secret referenced through `apm.existingSecret` or a deployment environment secret.
+
+The manual GitHub Actions workflow uses AWS OIDC and requires protected-environment secrets `AWS_ROLE_TO_ASSUME` and `GHCR_READ_TOKEN`. Terraform provisions EKS; Helm deploys workloads after the cluster exists.
+
 ## CI files
 
 - `.github/workflows/terraform-ci.yaml` validates the AWS root and runs the complete Floci apply/destroy cycle.
+- `.github/workflows/deploy_app.yaml` builds the application image and deploys the Helm chart manually.
 - `.github/workflows/deploy_terraform.yaml` is manual-only and may apply to AWS.
 
 Keep action versions current and use `actions/checkout@v4` and `hashicorp/setup-terraform@v3` conventions already established in the repository.

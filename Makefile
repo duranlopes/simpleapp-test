@@ -12,6 +12,11 @@ KIND_CLUSTER ?= simpleapp-test
 KIND_CONFIG := kind-cluster/kind-config.yaml
 K8S_MANIFESTS := kubernetes/manifests
 APP_COMPOSE := app/docker-compose.yaml
+HELM_CHART := kubernetes/helm/simpleapp
+HELM_RELEASE ?= simpleapp
+HELM_NAMESPACE ?= prova
+HELM_IMAGE_REPOSITORY ?= ghcr.io/duranlopes/simpleapp-test
+HELM_IMAGE_TAG ?= latest
 
 TF := terraform -chdir=$(TERRAFORM_DIR)
 FLOCI_ENV := AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_DEFAULT_REGION=$(FLOCI_REGION) AWS_ENDPOINT_URL=$(FLOCI_ENDPOINT)
@@ -21,6 +26,7 @@ TF_COMMON := -input=false -lock=false
         floci-up floci-wait floci-down floci-init floci-plan floci-apply \
         floci-destroy test-floci \
         app-up app-down app-config app-test \
+        helm-lint helm-template helm-install helm-uninstall \
         kind-up kind-down k8s-apply k8s-delete \
         test clean
 
@@ -97,20 +103,36 @@ app-down: ## Stop and remove the application Docker Compose stack
 app-test: app-config ## Run a lightweight application source smoke test
 	python3 -m compileall -q app
 
+helm-lint: ## Lint the application Helm chart
+	helm lint $(HELM_CHART)
+
+helm-template: ## Render the application Helm chart locally
+	@helm lint $(HELM_CHART) >/dev/null
+	@helm template $(HELM_RELEASE) $(HELM_CHART) --namespace $(HELM_NAMESPACE) \
+		--set image.repository=$(HELM_IMAGE_REPOSITORY) \
+		--set-string image.tag=$(HELM_IMAGE_TAG)
+
+helm-install: helm-lint ## Install or upgrade the application with Helm in the current Kubernetes context
+	helm upgrade --install $(HELM_RELEASE) $(HELM_CHART) \
+		--namespace $(HELM_NAMESPACE) \
+		--create-namespace \
+		--wait \
+		--timeout 5m \
+		--set image.repository=$(HELM_IMAGE_REPOSITORY) \
+		--set-string image.tag=$(HELM_IMAGE_TAG)
+
+helm-uninstall: ## Remove the application Helm release from the current Kubernetes context
+	helm uninstall $(HELM_RELEASE) --namespace $(HELM_NAMESPACE)
+
 kind-up: ## Create the disposable Kind cluster and install local add-ons
-	kind create cluster --name $(KIND_CLUSTER) --config $(KIND_CONFIG)
-	kubectl apply -f kind-cluster/ingress-nginx-deploy.yaml
-	kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=120s
-	kubectl apply -f kind-cluster/metric-server.yaml
+	KIND_CLUSTER_NAME=$(KIND_CLUSTER) ./kind-cluster/install.sh
 
 kind-down: ## Delete the disposable Kind cluster
 	kind delete cluster --name $(KIND_CLUSTER)
 
-k8s-apply: ## Apply application manifests to the current Kubernetes context
-	kubectl apply -f $(K8S_MANIFESTS)
+k8s-apply: helm-install ## Install the application Helm release in the current Kubernetes context
 
-k8s-delete: ## Delete application manifests from the current Kubernetes context
-	kubectl delete -f $(K8S_MANIFESTS) --ignore-not-found
+k8s-delete: helm-uninstall ## Remove the application Helm release from the current Kubernetes context
 
 test: fmt validate app-test ## Run static Terraform and application checks
 

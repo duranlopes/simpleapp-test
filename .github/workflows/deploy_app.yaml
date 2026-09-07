@@ -19,7 +19,8 @@ permissions:
 
 env:
   IMAGE_NAME: ghcr.io/${{ github.repository }}
-  NAMESPACE: prova
+  HELM_RELEASE: simpleapp
+  HELM_NAMESPACE: prova
 
 jobs:
   build:
@@ -30,6 +31,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Lint Helm chart
+        run: helm lint kubernetes/helm/simpleapp
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -52,7 +59,7 @@ jobs:
             ${{ env.IMAGE_NAME }}:latest
 
   deploy:
-    name: Deploy to EKS
+    name: Deploy to EKS with Helm
     needs: build
     runs-on: ubuntu-latest
     environment: production
@@ -69,24 +76,46 @@ jobs:
       - name: Configure kubeconfig
         run: aws eks update-kubeconfig --region "${{ inputs.aws_region }}" --name "${{ inputs.cluster_name }}"
 
-      - name: Validate manifests
-        run: kubectl apply --dry-run=server -f kubernetes/manifests/
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
 
-      - name: Apply namespace and configuration
-        run: |
-          kubectl apply -f kubernetes/manifests/ns.yaml
-          kubectl apply -f kubernetes/manifests/simpleapp-cm.yaml
-          kubectl apply -f kubernetes/manifests/simpleapp-svc.yaml
-
-      - name: Apply deployment with immutable image tag
+      - name: Configure GHCR pull secret
         env:
-          IMAGE: ${{ needs.build.outputs.image }}
+          GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
         run: |
-          sed "s|image: .*|image: ${IMAGE}|" kubernetes/manifests/simpleapp.yaml \
-            | kubectl apply -f -
+          test -n "$GHCR_READ_TOKEN" || { echo "GHCR_READ_TOKEN is required" >&2; exit 1; }
+          kubectl create namespace "$HELM_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret docker-registry ghcr-pull \
+            --namespace "$HELM_NAMESPACE" \
+            --docker-server ghcr.io \
+            --docker-username "${{ github.actor }}" \
+            --docker-password "$GHCR_READ_TOKEN" \
+            --docker-email "${{ github.actor }}@users.noreply.github.com" \
+            --dry-run=client --output yaml | kubectl apply -f -
 
-      - name: Apply ingress
-        run: kubectl apply -f kubernetes/manifests/challenge-ingress.yaml
+      - name: Validate rendered chart against the cluster API
+        env:
+          IMAGE_REPOSITORY: ${{ env.IMAGE_NAME }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          helm template "$HELM_RELEASE" kubernetes/helm/simpleapp \
+            --namespace "$HELM_NAMESPACE" \
+            --set image.repository="$IMAGE_REPOSITORY" \
+            --set-string image.tag="$IMAGE_TAG" \
+            --set image.pullSecrets[0].name=ghcr-pull \
+            | kubectl apply --dry-run=server --filename -
 
-      - name: Wait for rollout
-        run: kubectl rollout status --namespace "${NAMESPACE}" deployment/simpleapp-deployment --timeout=180s
+      - name: Deploy Helm release
+        env:
+          IMAGE_REPOSITORY: ${{ env.IMAGE_NAME }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          helm upgrade --install "$HELM_RELEASE" kubernetes/helm/simpleapp \
+            --namespace "$HELM_NAMESPACE" \
+            --create-namespace \
+            --atomic \
+            --wait \
+            --timeout 5m \
+            --set image.repository="$IMAGE_REPOSITORY" \
+            --set-string image.tag="$IMAGE_TAG" \
+            --set image.pullSecrets[0].name=ghcr-pull
