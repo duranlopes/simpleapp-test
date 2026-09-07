@@ -1,41 +1,60 @@
 variable "cluster_name" {
-  default = "k8s-cluster"
+  description = "Name of the EKS cluster."
+  type        = string
+  default     = "k8s-cluster"
+
+  validation {
+    condition     = can(regex("^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]$", var.cluster_name)) && length(var.cluster_name) <= 100
+    error_message = "cluster_name must be 2-100 characters and contain only letters, numbers, and hyphens."
+  }
 }
 
 variable "region" {
-  default = "us-east-1"
+  description = "AWS region where the EKS cluster is provisioned."
+  type        = string
+  default     = "us-east-1"
 }
 
 variable "kubernetes_version" {
-  default = "1.18"
+  description = "Kubernetes version for the EKS control plane and managed node group."
+  type        = string
+  default     = "1.33"
+
+  validation {
+    condition     = can(regex("^[0-9]+\\.[0-9]+$", var.kubernetes_version))
+    error_message = "kubernetes_version must use the MAJOR.MINOR format."
+  }
 }
 
-
 variable "desired_size" {
-  default = 3
+  description = "Desired number of nodes in the managed node group."
+  type        = number
+  default     = 3
+
+  validation {
+    condition     = var.desired_size >= 1
+    error_message = "desired_size must be at least 1."
+  }
 }
 
 variable "min_size" {
-  default = 3
+  description = "Minimum number of nodes in the managed node group."
+  type        = number
+  default     = 3
 
+  validation {
+    condition     = var.min_size >= 1
+    error_message = "min_size must be at least 1."
+  }
 }
 
 variable "max_size" {
-  default = 4
-}
+  description = "Maximum number of nodes in the managed node group."
+  type        = number
+  default     = 4
 
-#variable "auto_scale_cpu" {
-#  default = {
-#    scale_up_threshold  = 80
-#    scale_up_period     = 60
-#    scale_up_evaluation = 2
-#    scale_up_cooldown   = 300
-#    scale_up_add        = 2
-#
-#    scale_down_threshold  = 40
-#    scale_down_period     = 120
-#    scale_down_evaluation = 2
-#    scale_down_cooldown   = 300
-#    scale_down_remove     = -1
-#  }
-#}
+  validation {
+    condition     = var.max_size >= var.min_size
+    error_message = "max_size must be greater than or equal to min_size."
+  }
+}

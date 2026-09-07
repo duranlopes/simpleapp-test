@@ -1,16 +1,21 @@
 terraform {
-  required_version = ">0.14"
+  required_version = ">= 1.9.0, < 2.0.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 6.0"
+    }
+  }
 }
 
 provider "aws" {
   region = var.region
-}
 
-#terraform {
-#  backend "s3" {
-#    bucket  = "terraform-state-duran"
-#    key     = "terraform.tfstate"
-#    region  = "us-east-1"
-#    profile = "particular"
-#  }
-#}
+  default_tags {
+    tags = {
+      ManagedBy = "terraform"
+      Project   = var.cluster_name
+    }
+  }
+}
