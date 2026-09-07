@@ -1,0 +1,11 @@
+services:
+  floci:
+    image: floci/floci:2.0.1
+    container_name: simpleapp-test-floci
+    ports:
+      - "4566:4566"
+    environment:
+      FLOCI_DEFAULT_REGION: us-east-1
+      FLOCI_SERVICES_EKS_ENABLED: "true"
+      FLOCI_SERVICES_EKS_MOCK: "true"
+      FLOCI_STORAGE_MODE: memory

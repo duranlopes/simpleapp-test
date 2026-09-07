@@ -1,0 +1,4 @@
+cluster_name       = "simpleapp-floci"
+region             = "us-east-1"
+kubernetes_version = "1.33"
+node_group_name    = "simpleapp-floci-nodes"
