@@ -38,15 +38,28 @@ module "eks" {
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnets
 
-  endpoint_public_access = true
-  authentication_mode    = "CONFIG_MAP"
+  endpoint_public_access             = true
+  authentication_mode                = "CONFIG_MAP"
+  create_primary_security_group_tags = false
 
   enable_cluster_creator_admin_permissions = false
+  create_kms_key                           = false
+  encryption_config                        = null
+  enabled_log_types                        = []
 
   eks_managed_node_groups = {
     default = {
-      name           = "${var.cluster_name}-node-group"
-      instance_types = [var.node_instance_type]
+      name                     = "${var.cluster_name}-node-group"
+      use_name_prefix          = false
+      iam_role_name            = "${var.cluster_name}-node-role"
+      iam_role_use_name_prefix = false
+      instance_types           = [var.node_instance_type]
+
+      # Let EKS select its managed-node AMI; this avoids an SSM lookup and
+      # keeps the same module graph compatible with the Floci API emulator.
+      create_launch_template         = false
+      use_custom_launch_template     = false
+      use_latest_ami_release_version = false
 
       min_size     = var.min_size
       max_size     = var.max_size
