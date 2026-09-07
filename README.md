@@ -179,7 +179,7 @@ aws eks describe-nodegroup \\
 terraform -chdir=terraform destroy -auto-approve -var-file=floci.tfvars.example
 ```
 
-The test uses the same official VPC and EKS modules as the AWS deployment. The managed node group is configured to let EKS select its default AMI instead of querying the AWS SSM AMI parameter; this keeps the module graph compatible with Floci while remaining valid for AWS EKS.
+The test uses the same official VPC and EKS modules as the AWS deployment. The managed node group is configured to let EKS select its default AMI instead of querying the AWS SSM AMI parameter. `floci.tfvars.example` additionally disables KMS encryption, primary-security-group tagging, and control-plane logs only because those specific Floci API operations are not implemented; the AWS root defaults keep those settings configurable for real EKS.
 
 Floci validates Terraform resource creation, module wiring, state refresh, EKS API responses, and cleanup. It does **not** validate kubelet behavior, node bootstrapping, CNI networking, Helm workloads, or production AWS networking. Use Kind or a real AWS EKS environment for those checks.
 
