@@ -1,185 +1,234 @@
 # simpleapp-test
 
+[![Terraform CI](https://github.com/duranlopes/simpleapp-test/actions/workflows/terraform-ci.yaml/badge.svg)](https://github.com/duranlopes/simpleapp-test/actions/workflows/terraform-ci.yaml)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-## Deploy IaC
+A hands-on DevOps and Kubernetes laboratory built around a small Flask application. The repository covers application packaging, Kubernetes manifests, Helm-based observability, AWS EKS infrastructure, and local AWS-compatible validation with [Floci](https://github.com/floci-io/floci).
 
-### Terraform:
+> This repository is a learning and experimentation environment. The legacy Kubernetes manifests and deployment scripts are intentionally preserved, while the Terraform and CI paths are being modernized incrementally.
+
+## What is included
+
+- **Flask application** with health, configuration, and APM endpoints.
+- **Docker Compose** definition for running the application locally.
+- **Kubernetes manifests** for the application, service, namespace, ConfigMap, HPA, and ingress.
+- **Kind cluster bootstrap** for a local multi-node Kubernetes cluster.
+- **Helm values** for Elasticsearch and Kibana.
+- **k6 load test** container and script.
+- **EKS Terraform** using the official VPC and EKS community modules.
+- **Floci EKS compatibility test** that creates and destroys a complete mock EKS environment without AWS credentials.
+- **GitHub Actions** for Terraform validation and manual AWS deployment.
+
+## Repository layout
+
+```text
+.
+├── app/                         # Flask application, image, tests, and Compose file
+├── assets/                      # Screenshots used by the documentation
+├── k6-stresstest/               # k6 load-test image and script
+├── kind-cluster/                # Kind cluster configuration and bootstrap script
+├── kubernetes/
+│   ├── manifests/               # Application Kubernetes resources
+│   └── helm/elk/                # Elasticsearch and Kibana values
+├── list_ec2_api/               # Small Flask API that lists EC2 instances
+├── terraform/
+│   ├── modules.tf               # AWS VPC and EKS module composition
+│   ├── variables.tf             # AWS deployment inputs
+│   ├── outputs.tf               # Cluster and network outputs
+│   ├── modules/floci-network/   # Minimal network module for Floci tests
+│   ├── floci/                   # Isolated Floci EKS test root
+│   └── docker-compose.floci.yml # Local Floci service
+└── .github/workflows/
+    ├── terraform-ci.yaml        # Format, validate, apply/destroy against Floci
+    └── deploy_terraform.yaml    # Manual AWS plan/apply workflow
+```
+
+## Application
+
+The Flask application listens on port `8008` and exposes:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `/` | Returns the application message |
+| `/health` | Readiness/liveness response |
+| `/code` | Returns the `Code` environment variable, when configured |
+
+Run it locally with Python:
 
 ```bash
-## Initiate provider
-terraform init
-## Apply the modules
-terraform apply
-```
-
-### Change Kubernetes context:
-
-```bash
-aws eks --region us-east-1 update-kubeconfig --name k8s-cluster
-```
-
-## Build API Image:
-
-```bash
-cd app/
-docker build -t duran750/simpleapptest:v1
-docker push duran750/simpleapptest:v1
-```
-
-## Kubernetes Manifests:
-
-```bash
-cd kubernetes/manifests
-#Namespace: 
-kubectl create -f ns.yaml && \
-#ConfigMap:
-kubectl create -f simpleapp-cm.yaml && \ 
-#Deployment: 
-kubectl create -f simpleapp.yaml && \ 
-#Service
-kubectl create -f simpleapp-svc.yaml && \ 
-#Ingress Controller
-kubectl create -f challenge-ingress.yaml 
-          
-```
-
-### K8s Features:
-
-
-```bash
-# Deploy Nginx ingress controller
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-0.32.0/deploy/static/provider/aws/deploy.yaml
-
-
-# Deploy metric server
-kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
-```
-
-## Helm
-
-### Install:
-
-```
-curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 > get_helm.sh
-chmod 700 get_helm.sh
-./get_helm.sh
-```
-
-### Prometheus Stack:
-
-```bash
-# Deploy Prometheus + Grafana
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts && \
-helm repo update && \
-helm install prometheus prometheus-community/kube-prometheus-stack -n prova
-```
-
-### ELK Stack:
-
-```bash
-cd kubernetes/helm/elk && \
-helm repo add elastic https://Helm.elastic.co && \
-helm repo update && \
-helm install elasticsearch elastic/elasticsearch -n prova -f elastic-values.yaml  && \
-helm install kibana elastic/kibana -n prova -f kibana-values.yaml && \
-helm install metricbeat elastic/metricbeat -n prova && \
-helm install apm-server elastic/apm-server -n prova
-```
-
-## EC2 Instances
-
-### Get-ec2 API:
-
-```
-# Configure aws access key and secret key
-aws configure
-
-cd list_ec2_api/
-
-# To run this script it is necessary to install the Boto3 library and configure aws cli or running in docker using env vars
-
+cd app
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-
-python3 api/get_ec2.py
+python app.py
 ```
 
-### Running Get-ec2 with Docker 
+Then open `http://127.0.0.1:8008/health`.
 
-`Obs: Set your AWS credentials env's`
+Run the published image with Docker Compose:
 
 ```bash
-docker run -p 5000:5000 -e AWS_ACCESS_KEY_ID="" \
--e AWS_SECRET_ACCESS_KEY="" \
--e AWS_DEFAULT_REGION=us-east-1 duran750/ec2-api
+docker compose -f app/docker-compose.yaml up -d
+curl http://127.0.0.1:8008/health
+docker compose -f app/docker-compose.yaml down
 ```
 
-Acess API in http://localhost:5000/ec2 or Swagger in http://localhost:5000/docs
-
-## Samples:
-
-### Grafana dashboard
-
-http://grafana.prova/
-
-
-*obs: Default grafana user: `admin` and password is `prom-operator`
-
-![Grafana dashboard](assets/grafana_namespace_pods.png)
-
-
-### Kibana
-
-http://kibana.prova/
-
-#### Cluster metrics
-![Kibana metric dashboard](assets/kibana_metrics_pods.png)
-
-#### APM metrics
-![Kibana metric dashboard](assets/kibana_apm_flask.png)
-
-
-### Get EC2 API
-
-![ec2 api](assets/get_ec2_api.png)
-
-## Terraform layout
-
-The Terraform root uses the official community modules for the AWS infrastructure:
-
-- `terraform-aws-modules/vpc/aws` `6.x` for the VPC, public/private subnets, NAT gateway, and subnet tags.
-- `terraform-aws-modules/eks/aws` `21.x` for the EKS control plane and managed node group.
-- HashiCorp AWS provider `6.x`, locked in `terraform/.terraform.lock.hcl`.
-
-The real AWS deployment is manual and requires AWS credentials plus a configured state backend before applying in a shared environment.
-
-## Validate EKS locally with Floci
-
-Floci provides an isolated AWS-compatible EKS test environment. It uses EKS mock mode, so the test validates Terraform resource creation, AWS API wiring, state refresh, outputs, and cleanup without creating AWS resources.
+Build the image locally:
 
 ```bash
-cd terraform
+docker build -t simpleapp-test:local app/
+```
 
-docker compose -f docker-compose.floci.yml up -d --wait
-cd floci
+The existing Kubernetes deployment references `duran750/simpleapptest:v1`. Publish a compatible image or update `kubernetes/manifests/simpleapp.yaml` before deploying it.
 
+## Local Kubernetes with Kind
+
+Prerequisites:
+
+- Docker
+- `kubectl`
+- Kind
+
+The bootstrap script installs an older pinned Kind binary when Kind is not already present, creates a three-worker cluster, installs ingress-nginx, waits for the ingress controller, and applies metrics-server:
+
+```bash
+cd kind-cluster
+./install.sh
+kubectl cluster-info --context kind-kind
+kubectl get nodes
+```
+
+The script uses host ports `80` and `443`. Make sure they are available before running it.
+
+Deploy the application resources:
+
+```bash
+kubectl apply -f kubernetes/manifests/ns.yaml
+kubectl apply -f kubernetes/manifests/simpleapp-cm.yaml
+kubectl apply -f kubernetes/manifests/simpleapp.yaml
+kubectl apply -f kubernetes/manifests/simpleapp-svc.yaml
+kubectl apply -f kubernetes/manifests/challenge-ingress.yaml
+```
+
+The current ingress manifest contains the legacy `extensions/v1beta1` API. Check cluster compatibility before applying it to a current Kubernetes release; migrate it to `networking.k8s.io/v1` when modernizing the workload path.
+
+## Terraform and AWS EKS
+
+The AWS root uses:
+
+- Terraform `>= 1.9.0, < 2.0.0`;
+- HashiCorp AWS provider `~> 6.0`;
+- `terraform-aws-modules/vpc/aws` `~> 6.0`;
+- `terraform-aws-modules/eks/aws` `~> 21.0`;
+- a committed `terraform/.terraform.lock.hcl`.
+
+The AWS root creates a VPC with public/private subnets, a NAT gateway, an EKS control plane, and an EKS managed node group. Review the Terraform plan and configure a remote backend before using it for shared or long-lived infrastructure.
+
+Initialize and validate the AWS root:
+
+```bash
+terraform -chdir=terraform init -backend=false
+terraform -chdir=terraform fmt -check -recursive
+terraform -chdir=terraform validate
+terraform -chdir=terraform plan
+```
+
+The real AWS deployment is manual:
+
+```bash
+terraform -chdir=terraform init
+terraform -chdir=terraform plan
+terraform -chdir=terraform apply
+```
+
+Do not commit credentials, `*.tfvars`, state files, or a local backend configuration containing secrets.
+
+After a successful AWS deployment, configure kubectl with:
+
+```bash
+aws eks update-kubeconfig --region us-east-1 --name k8s-cluster
+kubectl get nodes
+```
+
+## Floci EKS validation
+
+Floci provides a local AWS-compatible endpoint. The repository uses Floci mock EKS mode to validate Terraform resource creation, state refresh, outputs, and cleanup without creating AWS resources.
+
+Start Floci:
+
+```bash
+docker compose -f terraform/docker-compose.floci.yml up -d --wait
+```
+
+Run the isolated Terraform root:
+
+```bash
 export AWS_ACCESS_KEY_ID=test
 export AWS_SECRET_ACCESS_KEY=test
 export AWS_DEFAULT_REGION=us-east-1
 export AWS_ENDPOINT_URL=http://127.0.0.1:4566
 
-terraform init -backend=false
-terraform validate
-terraform plan -var-file=../floci.tfvars.example
-terraform apply -auto-approve -var-file=../floci.tfvars.example
-terraform output
-terraform destroy -auto-approve -var-file=../floci.tfvars.example
+terraform -chdir=terraform/floci init -backend=false
+terraform -chdir=terraform/floci fmt -check -recursive
+terraform -chdir=terraform/floci validate
+terraform -chdir=terraform/floci plan -var-file=../floci.tfvars.example
+terraform -chdir=terraform/floci apply -auto-approve -var-file=../floci.tfvars.example
+terraform -chdir=terraform/floci output
+terraform -chdir=terraform/floci destroy -auto-approve -var-file=../floci.tfvars.example
 ```
 
-The Floci root intentionally uses a small `floci-network` module. Floci requires real VPC, subnet, and security-group IDs for EKS operations, but its emulator does not reproduce the full AWS networking behavior of the production VPC module.
+Stop Floci after the test:
 
-The Floci test does not validate kubelet, node bootstrapping, CNI behavior, Helm workloads, or production AWS networking. Use a Kubernetes distribution such as Kind or a real EKS environment for those checks.
+```bash
+docker compose -f terraform/docker-compose.floci.yml down -v
+```
 
-## GitHub Actions
+The Floci test creates its own minimal VPC, subnets, and security group through `terraform/modules/floci-network`. This is deliberate: Floci requires real resource IDs for EKS operations, but it does not reproduce all AWS networking behavior of the production VPC module.
 
-- `terraform-ci.yaml` runs Terraform formatting and validation, then applies and destroys the Floci EKS test environment.
-- `deploy_terraform.yaml` is manual-only and runs plan/apply against AWS using repository secrets.
+The Floci test does **not** validate kubelet behavior, node bootstrapping, CNI networking, Helm workloads, or production AWS networking. Use Kind or a real AWS EKS environment for those checks.
+
+## CI/CD
+
+### Pull requests and pushes
+
+`terraform-ci.yaml` runs:
+
+1. Terraform formatting and validation for the AWS root.
+2. Floci startup and health verification.
+3. Floci Terraform plan, apply, output assertions, and destroy.
+4. Floci cleanup even when a previous step fails.
+
+### Manual AWS deployment
+
+`deploy_terraform.yaml` is triggered with `workflow_dispatch`. It runs Terraform init, format, validate, plan, apply, and show against AWS using:
+
+- `AWS_ACCESS_KEY_ID` repository secret;
+- `AWS_SECRET_ACCESS_KEY` repository secret.
+
+Use least-privilege credentials and a remote state backend before enabling this workflow for a shared AWS account.
+
+## Observability and load testing
+
+The repository contains Helm values under `kubernetes/helm/elk/` for Elasticsearch and Kibana. The original README also references Prometheus/Grafana, Metricbeat, and APM Server deployments. Review chart versions and Kubernetes API compatibility before installing them in a new cluster.
+
+The k6 test assets are under `k6-stresstest/`:
+
+```bash
+cd k6-stresstest
+# Review script.js and the image configuration before running a load test.
+```
+
+Run load tests only against an environment intended for that traffic.
+
+## Development conventions
+
+- Keep Terraform modules and providers version-pinned or constrained.
+- Run `terraform fmt -check -recursive` and `terraform validate` before committing Terraform changes.
+- Use the Floci apply/destroy cycle for EKS API-compatible changes.
+- Keep AWS apply manual and never place real credentials in the repository.
+- Prefer small conventional commits in English.
+- See [`AGENTS.md`](AGENTS.md) for contributor and coding-agent instructions.
+
+## License
+
+This project is released under the MIT License. See [`LICENSE`](LICENSE) when present in the repository.
