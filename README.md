@@ -149,7 +149,24 @@ aws eks update-kubeconfig --region us-east-1 --name k8s-cluster
 kubectl get nodes
 ```
 
-## Validate the same Terraform root with Floci
+## Makefile workflows
+
+The repository Makefile provides safe entry points for the application, Terraform, Floci, and Kind workflows. The default target only displays help; AWS `apply` and `destroy` remain explicit.
+
+```bash
+make help
+make test                 # Terraform format/validate plus application smoke checks
+make test-floci           # Floci up, canonical Terraform plan/apply/API checks/destroy/down
+make app-up
+make app-down
+make kind-up
+make k8s-apply
+make k8s-delete
+make kind-down
+```
+
+For the real AWS root, use `make init`, `make plan`, `make apply`, and `make destroy` only after selecting the intended account, region, backend, and credentials. `make clean` removes local Terraform working directories and Python bytecode but does not remove AWS resources.
+
 
 Floci provides a local AWS-compatible endpoint. The CI test points the **same `terraform/` root** at Floci; there is no duplicate Terraform root or Floci-only network module. Only the endpoint, test credentials, and test variable file change.
 
