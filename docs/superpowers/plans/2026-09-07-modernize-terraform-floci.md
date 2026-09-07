@@ -77,22 +77,21 @@
 - [ ] Commit as `refactor(terraform): adopt official EKS module`.
 - [ ] Push and verify the remote branch.
 
-### Task 5: Add a Floci Terraform test environment
+### Task 5: Validate the canonical Terraform root with Floci
 
 **Files:**
-- Create: `terraform/floci/versions.tf`
-- Create: `terraform/floci/main.tf`
-- Create: `terraform/floci/variables.tf`
 - Create: `terraform/docker-compose.floci.yml`
 - Create: `terraform/floci.tfvars.example`
-- Modify: `.gitignore`
+- Modify: `terraform/modules.tf`
+- Modify: `.github/workflows/terraform-ci.yaml`
+- Modify: `README.md`
+- Modify: `AGENTS.md`
 
-- [ ] Configure the AWS provider endpoint through `AWS_ENDPOINT_URL` and test-only credentials.
-- [ ] Use Floci mock EKS mode for deterministic API validation.
-- [ ] Keep the Floci root independent from the AWS root state.
-- [ ] Run Floci in Docker, wait for health, run `terraform init -backend=false`, `terraform validate`, and `terraform plan`.
-- [ ] Commit as `test(terraform): add Floci EKS validation environment`.
-- [ ] Push and verify the remote branch.
+- [ ] Configure Floci through `AWS_ENDPOINT_URL` and test-only credentials.
+- [ ] Run the same `terraform/` root against Floci; do not create a second root or Floci-only network module.
+- [ ] Disable only module operations unavailable in Floci while preserving the AWS module graph.
+- [ ] Run Floci in Docker, wait for health, and run root `terraform init`, `validate`, `plan`, `apply`, API assertions, and `destroy`.
+- [ ] Commit and push the canonical-root Floci validation change.
 
 ### Task 6: Modernize Terraform CI and documentation
 

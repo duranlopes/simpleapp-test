@@ -13,9 +13,9 @@ This repository is a learning-oriented DevOps laboratory. It contains:
 - observability values for Elasticsearch and Kibana;
 - a k6 load-test example;
 - an AWS Terraform root under `terraform/`;
-- an isolated Floci Terraform root under `terraform/floci/`.
+- a Floci Docker service used to validate that same Terraform root.
 
-The AWS Terraform root and the Floci test root are intentionally separate. Do not point the AWS root at Floci or point production credentials at the Floci root.
+The AWS and Floci runs use the same Terraform module graph. Floci changes only the endpoint, credentials, and test variable file; it must not receive a duplicate Terraform root or duplicate network module.
 
 ## Language and style
 
@@ -53,16 +53,11 @@ The production-oriented root is `terraform/`:
 
 Use the official modules for AWS changes instead of adding new handwritten VPC, IAM, or EKS resources to the root.
 
-### Floci root
+### Floci validation
 
-The compatibility root is `terraform/floci/`:
+The Floci validation runs the canonical `terraform/` root with `AWS_ENDPOINT_URL=http://127.0.0.1:4566`. It must not introduce a second root or a Floci-only network module.
 
-- It uses only AWS resources supported by the Floci compatibility test.
-- `terraform/modules/floci-network` creates the minimal VPC, subnet, and security-group resources needed to obtain valid IDs.
-- It uses Floci mock EKS mode for deterministic CI.
-- It must remain state-isolated from `terraform/`.
-
-The official EKS module may query AWS SSM for optimized node AMIs. That is valid for AWS but is not available in Floci; do not make the Floci job pretend to validate the full AWS module graph.
+The EKS managed node group is configured with `use_latest_ami_release_version = false`, `create_launch_template = false`, and `use_custom_launch_template = false`. This lets EKS select its default managed-node AMI and avoids the AWS SSM AMI lookup that Floci does not implement. The module graph and resources remain the same for AWS and Floci.
 
 ## Required validation
 
@@ -74,7 +69,7 @@ terraform -chdir=terraform init -backend=false -input=false
 terraform -chdir=terraform validate
 ```
 
-For changes under `terraform/floci/`:
+For the Floci compatibility run:
 
 ```bash
 docker compose -f terraform/docker-compose.floci.yml up -d --wait
@@ -84,24 +79,26 @@ export AWS_SECRET_ACCESS_KEY=test
 export AWS_DEFAULT_REGION=us-east-1
 export AWS_ENDPOINT_URL=http://127.0.0.1:4566
 
-terraform -chdir=terraform/floci fmt -check -recursive
-terraform -chdir=terraform/floci init -backend=false -input=false
-terraform -chdir=terraform/floci validate
-terraform -chdir=terraform/floci plan -var-file=../floci.tfvars.example
-terraform -chdir=terraform/floci apply -auto-approve -var-file=../floci.tfvars.example
-terraform -chdir=terraform/floci output
-terraform -chdir=terraform/floci destroy -auto-approve -var-file=../floci.tfvars.example
+terraform -chdir=terraform init -backend=false -input=false
+terraform -chdir=terraform validate
+terraform -chdir=terraform plan -var-file=floci.tfvars.example
+terraform -chdir=terraform apply -auto-approve -var-file=floci.tfvars.example
+aws eks describe-cluster --name simpleapp-floci
+aws eks describe-nodegroup \
+  --cluster-name simpleapp-floci \
+  --nodegroup-name simpleapp-floci-node-group
+terraform -chdir=terraform destroy -auto-approve -var-file=floci.tfvars.example
 
-docker compose -f terraform/docker-compose.floci.yml down -v
+docker compose -f terraform/docker-compose.floci.yml down -v --remove-orphans
 ```
 
 A successful Floci test must demonstrate:
 
-- Terraform validation succeeds;
-- the plan contains the expected resources;
+- the canonical Terraform root validates;
+- the plan contains the AWS module resources;
 - apply completes successfully;
-- `cluster_status` is `ACTIVE`;
-- `node_group_status` is `ACTIVE`;
+- the EKS cluster status is `ACTIVE`;
+- the EKS node group status is `ACTIVE`;
 - destroy completes successfully;
 - no test containers or Terraform state are left behind unexpectedly.
 

@@ -33,10 +33,9 @@ A hands-on DevOps and Kubernetes laboratory built around a small Flask applicati
 ├── list_ec2_api/               # Small Flask API that lists EC2 instances
 ├── terraform/
 │   ├── modules.tf               # AWS VPC and EKS module composition
-│   ├── variables.tf             # AWS deployment inputs
+│   ├── variables.tf             # AWS deployment inputs and Floci test inputs
 │   ├── outputs.tf               # Cluster and network outputs
-│   ├── modules/floci-network/   # Minimal network module for Floci tests
-│   ├── floci/                   # Isolated Floci EKS test root
+│   ├── floci.tfvars.example     # Test-only values for the same Terraform root
 │   └── docker-compose.floci.yml # Local Floci service
 └── .github/workflows/
     ├── terraform-ci.yaml        # Format, validate, apply/destroy against Floci
@@ -122,9 +121,9 @@ The AWS root uses:
 - `terraform-aws-modules/eks/aws` `~> 21.0`;
 - a committed `terraform/.terraform.lock.hcl`.
 
-The AWS root creates a VPC with public/private subnets, a NAT gateway, an EKS control plane, and an EKS managed node group. Review the Terraform plan and configure a remote backend before using it for shared or long-lived infrastructure.
+The single Terraform root creates a VPC with public/private subnets, a NAT gateway, an EKS control plane, and an EKS managed node group. Review the Terraform plan and configure a remote backend before using it for shared or long-lived infrastructure.
 
-Initialize and validate the AWS root:
+Initialize and validate the root:
 
 ```bash
 terraform -chdir=terraform init -backend=false
@@ -150,9 +149,9 @@ aws eks update-kubeconfig --region us-east-1 --name k8s-cluster
 kubectl get nodes
 ```
 
-## Floci EKS validation
+## Validate the same Terraform root with Floci
 
-Floci provides a local AWS-compatible endpoint. The repository uses Floci mock EKS mode to validate Terraform resource creation, state refresh, outputs, and cleanup without creating AWS resources.
+Floci provides a local AWS-compatible endpoint. The CI test points the **same `terraform/` root** at Floci; there is no duplicate Terraform root or Floci-only network module. Only the endpoint, test credentials, and test variable file change.
 
 Start Floci:
 
@@ -160,7 +159,7 @@ Start Floci:
 docker compose -f terraform/docker-compose.floci.yml up -d --wait
 ```
 
-Run the isolated Terraform root:
+Run the canonical root against Floci:
 
 ```bash
 export AWS_ACCESS_KEY_ID=test
@@ -168,24 +167,21 @@ export AWS_SECRET_ACCESS_KEY=test
 export AWS_DEFAULT_REGION=us-east-1
 export AWS_ENDPOINT_URL=http://127.0.0.1:4566
 
-terraform -chdir=terraform/floci init -backend=false
-terraform -chdir=terraform/floci fmt -check -recursive
-terraform -chdir=terraform/floci validate
-terraform -chdir=terraform/floci plan -var-file=../floci.tfvars.example
-terraform -chdir=terraform/floci apply -auto-approve -var-file=../floci.tfvars.example
-terraform -chdir=terraform/floci output
-terraform -chdir=terraform/floci destroy -auto-approve -var-file=../floci.tfvars.example
+terraform -chdir=terraform init -backend=false
+terraform -chdir=terraform fmt -check -recursive
+terraform -chdir=terraform validate
+terraform -chdir=terraform plan -var-file=floci.tfvars.example
+terraform -chdir=terraform apply -auto-approve -var-file=floci.tfvars.example
+aws eks describe-cluster --name simpleapp-floci
+aws eks describe-nodegroup \\
+  --cluster-name simpleapp-floci \\
+  --nodegroup-name simpleapp-floci-node-group
+terraform -chdir=terraform destroy -auto-approve -var-file=floci.tfvars.example
 ```
 
-Stop Floci after the test:
+The test uses the same official VPC and EKS modules as the AWS deployment. The managed node group is configured to let EKS select its default AMI instead of querying the AWS SSM AMI parameter; this keeps the module graph compatible with Floci while remaining valid for AWS EKS.
 
-```bash
-docker compose -f terraform/docker-compose.floci.yml down -v
-```
-
-The Floci test creates its own minimal VPC, subnets, and security group through `terraform/modules/floci-network`. This is deliberate: Floci requires real resource IDs for EKS operations, but it does not reproduce all AWS networking behavior of the production VPC module.
-
-The Floci test does **not** validate kubelet behavior, node bootstrapping, CNI networking, Helm workloads, or production AWS networking. Use Kind or a real AWS EKS environment for those checks.
+Floci validates Terraform resource creation, module wiring, state refresh, EKS API responses, and cleanup. It does **not** validate kubelet behavior, node bootstrapping, CNI networking, Helm workloads, or production AWS networking. Use Kind or a real AWS EKS environment for those checks.
 
 ## CI/CD
 
