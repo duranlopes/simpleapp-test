@@ -1,22 +1,15 @@
+# k6 load test
 
-### Install in ubuntu:
+The test uses the pinned official `grafana/k6` image and defaults to a small local smoke load. It is not a production stress test.
 
 ```bash
-sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 379CE192D401AB61
-echo "deb https://dl.bintray.com/loadimpact/deb stable main" | sudo tee -a /etc/apt/sources.list
-sudo apt-get update
-sudo apt-get install k6
+docker build -t simpleapp-k6:local .
+docker run --rm \
+  --network host \
+  -e BASE_URL=http://127.0.0.1:8008 \
+  -e VUS=5 \
+  -e DURATION=30s \
+  simpleapp-k6:local
 ```
 
-### Running with official docker image:
-
-```
-docker run --rm -i loadimpact/k6 run - <script.js
-```
-
-### Running with building ubuntu image (test host)
-
-```
-docker run --rm -v $(pwd):/app --network="host" -it k6test:latest bash
-```
-
+Increase `VUS` and `DURATION` only against an explicitly authorized test environment. The run fails when more than 1% of requests fail or p95 latency exceeds 500 ms.

@@ -1,33 +1,24 @@
 import http from 'k6/http';
-import { sleep } from 'k6';
-export let options = {
-  stages: [
-    { duration: '3m', target: 1000 }, // below normal load
-    { duration: '1m', target: 1000 },
-    { duration: '3m', target: 2000 }, // normal load
-    { duration: '5m', target: 200 },
-    { duration: '2m', target: 300 }, // around the breaking point
-    { duration: '5m', target: 300 },
-    { duration: '2m', target: 400 }, // beyond the breaking point
-    { duration: '5m', target: 400 },
-    { duration: '10m', target: 0 }, // scale down. Recovery stage.
-  ],
+import { check, sleep } from 'k6';
+
+const BASE_URL = __ENV.BASE_URL || 'http://127.0.0.1:8008';
+
+export const options = {
+  vus: Number(__ENV.VUS || 5),
+  duration: __ENV.DURATION || '30s',
+  thresholds: {
+    http_req_failed: ['rate<0.01'],
+    http_req_duration: ['p(95)<500'],
+  },
 };
+
 export default function () {
-  const BASE_URL = 'http://app.prova'; // make sure this is not production
-  let responses = http.batch([
-    [
-      'GET',
-      `${BASE_URL}/health`,
-      null,
-      { tags: { name: 'Health' } },
-    ],
-    [
-      'GET',
-      `${BASE_URL}/code`,
-      null,
-      { tags: { name: 'Code' } },
-    ],    
+  const responses = http.batch([
+    ['GET', `${BASE_URL}/health`, null, { tags: { name: 'Health' } }],
+    ['GET', `${BASE_URL}/code`, null, { tags: { name: 'Code' } }],
   ]);
+
+  check(responses[0], { 'health returns 200': (response) => response.status === 200 });
+  check(responses[1], { 'code returns 200': (response) => response.status === 200 });
   sleep(1);
 }
