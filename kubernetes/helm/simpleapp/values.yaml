@@ -1,0 +1,92 @@
+replicaCount: 3
+
+image:
+  repository: ghcr.io/duranlopes/simpleapp-test
+  pullPolicy: IfNotPresent
+  tag: "latest"
+  pullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  automount: false
+  annotations: {}
+
+service:
+  type: ClusterIP
+  port: 8008
+  targetPort: http
+
+config:
+  code: "1337"
+
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 30
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations: {}
+  hosts:
+    - host: app.prova
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+apm:
+  enabled: false
+  serviceName: simpleapp
+  serverUrl: ""
+  existingSecret: ""
+  secretKey: ELASTIC_APM_SECRET_TOKEN
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 3
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+podSecurityContext:
+  fsGroup: 10001
+  runAsNonRoot: true
+  runAsUser: 10001
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

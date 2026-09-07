@@ -1,0 +1,7 @@
+The simpleapp release is installed in namespace {{ .Release.Namespace }}.
+
+Check rollout status:
+  kubectl rollout status deployment/{{ include "simpleapp.fullname" . }} -n {{ .Release.Namespace }}
+
+Check the service:
+  kubectl get service/{{ include "simpleapp.fullname" . }} -n {{ .Release.Namespace }}
