@@ -28,25 +28,34 @@ module "vpc" {
   }
 }
 
-module "master" {
-  source = "./modules/master"
+module "eks" {
+  source  = "terraform-aws-modules/eks/aws"
+  version = "~> 21.0"
 
-  cluster_name       = var.cluster_name
+  name               = var.cluster_name
   kubernetes_version = var.kubernetes_version
 
-  private_subnet_1a = module.vpc.private_subnets[0]
-  private_subnet_1b = module.vpc.private_subnets[1]
-}
+  vpc_id     = module.vpc.vpc_id
+  subnet_ids = module.vpc.private_subnets
 
-module "node" {
-  source = "./modules/node"
+  endpoint_public_access = true
+  authentication_mode    = "CONFIG_MAP"
 
-  cluster_name = module.master.cluster_name
+  enable_cluster_creator_admin_permissions = false
 
-  private_subnet_1a = module.vpc.private_subnets[0]
-  private_subnet_1b = module.vpc.private_subnets[1]
+  eks_managed_node_groups = {
+    default = {
+      name           = "${var.cluster_name}-node-group"
+      instance_types = [var.node_instance_type]
 
-  desired_size = var.desired_size
-  min_size     = var.min_size
-  max_size     = var.max_size
+      min_size     = var.min_size
+      max_size     = var.max_size
+      desired_size = var.desired_size
+    }
+  }
+
+  tags = {
+    Environment = "development"
+    Terraform   = "true"
+  }
 }
