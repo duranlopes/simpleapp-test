@@ -1,58 +1,92 @@
- name: Deploy-K8s
+name: Deploy application
 
 on:
   workflow_dispatch:
+    inputs:
+      aws_region:
+        description: AWS region
+        required: true
+        default: us-east-1
+      cluster_name:
+        description: EKS cluster name
+        required: true
+        default: simpleapp
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository }}
+  NAMESPACE: prova
 
 jobs:
   build:
+    name: Build and publish application image
     runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.image.outputs.image }}
     steps:
-      - uses: actions/checkout@v2
-      - name: Docker login
-        env: 
-          DOCKER_USER: ${{ secrets.DOCKER_USER }}  
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}  
-        run: docker login -u $DOCKER_USER -p $DOCKER_PASSWORD docker.io
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Docker build Python
-        run: docker build -t rparisi/desafiostone ./entregavel-1
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Push image
-        run:  docker push rparisi/desafiostone:latest 
+      - name: Define image reference
+        id: image
+        run: echo "image=${IMAGE_NAME}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./app
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.IMAGE_NAME }}:latest
 
   deploy:
+    name: Deploy to EKS
+    needs: build
     runs-on: ubuntu-latest
-    container:
-      image: rparisi/aws_cd:latest
+    environment: production
     steps:
-      - name: Configure AWS credentials from Test account
-        uses: aws-actions/configure-aws-credentials@v1
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials with OIDC
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
-          
-      - uses: actions/checkout@v2
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v1
-        with:
-          name: kubernetes
-          path: ${{ github.workspace }}//entregavel-2/kubernetes
-      - name: Download Artifact
-        uses: actions/download-artifact@v2
-        with:
-          name: kubernetes
-          path: ${{ github.workspace }}/entregavel-2/kubernetes
-      
-      - name: LS -LA
-        run: ls -la
-      - name: AWS EKS > KUBECTL
-        run: aws eks --region us-east-1 update-kubeconfig --name k8s-cluster
-      - name: deploy manifest
-        run: kubectl apply -f ./entregavel-2/kubernetes/desafio_namespace.yaml
-      - name: deploy manifest
-        run: kubectl apply -f ./entregavel-2/kubernetes/desafio_deployment.yaml
-      - name: deploy manifest
-        run: kubectl apply -f ./entregavel-2/kubernetes/desafio_service.yaml
-      - name: deploy manifest
-        run: kubectl apply -f ./entregavel-2/kubernetes/desafio_ingress.yaml 
+          aws-region: ${{ inputs.aws_region }}
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+
+      - name: Configure kubeconfig
+        run: aws eks update-kubeconfig --region "${{ inputs.aws_region }}" --name "${{ inputs.cluster_name }}"
+
+      - name: Validate manifests
+        run: kubectl apply --dry-run=server -f kubernetes/manifests/
+
+      - name: Apply namespace and configuration
+        run: |
+          kubectl apply -f kubernetes/manifests/ns.yaml
+          kubectl apply -f kubernetes/manifests/simpleapp-cm.yaml
+          kubectl apply -f kubernetes/manifests/simpleapp-svc.yaml
+
+      - name: Apply deployment with immutable image tag
+        env:
+          IMAGE: ${{ needs.build.outputs.image }}
+        run: |
+          sed "s|image: .*|image: ${IMAGE}|" kubernetes/manifests/simpleapp.yaml \
+            | kubectl apply -f -
+
+      - name: Apply ingress
+        run: kubectl apply -f kubernetes/manifests/challenge-ingress.yaml
+
+      - name: Wait for rollout
+        run: kubectl rollout status --namespace "${NAMESPACE}" deployment/simpleapp-deployment --timeout=180s
