@@ -26,6 +26,34 @@ variable "kubernetes_version" {
   }
 }
 
+variable "vpc_cidr" {
+  description = "CIDR block for the EKS VPC."
+  type        = string
+  default     = "10.0.0.0/16"
+}
+
+variable "private_subnet_cidrs" {
+  description = "Private subnet CIDR blocks used by EKS."
+  type        = list(string)
+  default     = ["10.0.1.0/24", "10.0.2.0/24"]
+
+  validation {
+    condition     = length(var.private_subnet_cidrs) == 2
+    error_message = "Exactly two private subnet CIDRs are required."
+  }
+}
+
+variable "public_subnet_cidrs" {
+  description = "Public subnet CIDR blocks used by the VPC NAT gateway."
+  type        = list(string)
+  default     = ["10.0.3.0/24", "10.0.4.0/24"]
+
+  validation {
+    condition     = length(var.public_subnet_cidrs) == 2
+    error_message = "Exactly two public subnet CIDRs are required."
+  }
+}
+
 variable "desired_size" {
   description = "Desired number of nodes in the managed node group."
   type        = number
