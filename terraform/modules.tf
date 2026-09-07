@@ -40,12 +40,12 @@ module "eks" {
 
   endpoint_public_access             = true
   authentication_mode                = "CONFIG_MAP"
-  create_primary_security_group_tags = false
+  create_primary_security_group_tags = var.create_primary_security_group_tags
 
   enable_cluster_creator_admin_permissions = false
-  create_kms_key                           = false
-  encryption_config                        = null
-  enabled_log_types                        = []
+  create_kms_key                           = var.create_kms_key
+  encryption_config                        = var.create_kms_key ? {} : null
+  enabled_log_types                        = var.enabled_log_types
 
   eks_managed_node_groups = {
     default = {
