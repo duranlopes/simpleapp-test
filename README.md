@@ -242,7 +242,10 @@ Floci validates Terraform resource creation, module wiring, state refresh, EKS A
 3. Floci Terraform plan, apply, output assertions, and destroy.
 4. Floci cleanup even when a previous step fails.
 
-### Manual application deployment
+### Helm validation
+
+`helm-ci.yaml` runs automatically on pull requests and pushes that change the application chart. It executes strict Helm linting, renders default and production-style values, validates both outputs with Kubeconform against Kubernetes 1.33 schemas, and checks that the expected resources are present. It does not access AWS or deploy a release.
+
 
 `deploy_app.yaml` is triggered with `workflow_dispatch`. It builds the application image, publishes the commit-SHA tag to GHCR, configures EKS with AWS OIDC, and deploys `kubernetes/helm/simpleapp` with `helm upgrade --install --atomic --wait`. The `production` environment must provide `AWS_ROLE_TO_ASSUME` and a read-only `GHCR_READ_TOKEN`.
 

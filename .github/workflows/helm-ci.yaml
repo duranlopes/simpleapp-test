@@ -1,0 +1,85 @@
+name: Helm CI
+
+on:
+  pull_request:
+    paths:
+      - "kubernetes/helm/simpleapp/**"
+      - ".github/workflows/helm-ci.yaml"
+      - "Makefile"
+  push:
+    branches:
+      - main
+    paths:
+      - "kubernetes/helm/simpleapp/**"
+      - ".github/workflows/helm-ci.yaml"
+      - "Makefile"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: helm-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CHART_PATH: kubernetes/helm/simpleapp
+  RELEASE_NAME: simpleapp
+  NAMESPACE: prova
+
+jobs:
+  validate:
+    name: Lint and validate Helm chart
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.21.2
+
+      - name: Lint chart
+        run: helm lint "$CHART_PATH" --strict
+
+      - name: Render default values
+        run: |
+          helm template "$RELEASE_NAME" "$CHART_PATH" \
+            --namespace "$NAMESPACE" \
+            --kube-version 1.33.0 \
+            > /tmp/simpleapp-default.yaml
+
+      - name: Render production values
+        run: |
+          helm template "$RELEASE_NAME" "$CHART_PATH" \
+            --namespace "$NAMESPACE" \
+            --kube-version 1.33.0 \
+            --set image.repository=ghcr.io/duranlopes/simpleapp-test \
+            --set-string image.tag="${GITHUB_SHA}" \
+            --set image.pullSecrets[0].name=ghcr-pull \
+            --set apm.enabled=false \
+            > /tmp/simpleapp-production.yaml
+
+      - name: Validate default manifests with Kubeconform
+        run: |
+          docker run --rm -i ghcr.io/yannh/kubeconform:v0.6.7 \
+            -strict \
+            -summary \
+            -kubernetes-version 1.33.0 \
+            < /tmp/simpleapp-default.yaml
+
+      - name: Validate production manifests with Kubeconform
+        run: |
+          docker run --rm -i ghcr.io/yannh/kubeconform:v0.6.7 \
+            -strict \
+            -summary \
+            -kubernetes-version 1.33.0 \
+            < /tmp/simpleapp-production.yaml
+
+      - name: Verify expected resources
+        run: |
+          test "$(grep -c '^kind:' /tmp/simpleapp-default.yaml)" -eq 6
+          grep -q '^kind: Deployment$' /tmp/simpleapp-default.yaml
+          grep -q '^kind: HorizontalPodAutoscaler$' /tmp/simpleapp-default.yaml
+          grep -q '^kind: Ingress$' /tmp/simpleapp-default.yaml
